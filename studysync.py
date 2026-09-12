@@ -93,24 +93,58 @@ if "start_time" not in st.session_state:
 if "logged_hours" not in st.session_state:
   st.session_state.logged_hours = 0.0
 
-# --- 3. Sidebar: Background Music & Focus Mode ---
+# --- 3. Sidebar: In-App YouTube Search & Player ---
+import json
+import re
+import urllib.parse
+import urllib.request
+
+
+def search_youtube_video_id(query):
+  """Fetches the top YouTube video ID for a given search query directly."""
+  try:
+    encoded_query = urllib.parse.quote(query)
+    search_url = f"https://www.youtube.com/results?search_query={encoded_query}"
+    req = urllib.request.Request(
+        search_url, headers={"User-Agent": "Mozilla/5.0"}
+    )
+    with urllib.request.urlopen(req, timeout=5) as response:
+      html = response.read().decode("utf-8")
+      # Extract top video IDs using regex from page metadata
+      video_ids = re.findall(r"\"videoId\":\"([a-zA-Z0-9_-]{11})\"", html)
+      if video_ids:
+        return video_ids[0]
+  except Exception:
+    pass
+  return None
+
+
 st.sidebar.write("---")
-st.sidebar.title("🎧 Focus Mode")
-st.sidebar.write("Background Study Audio Player:")
+st.sidebar.title("🎧 In-App Focus Music")
 
-# Stream local MP3 or fallback to online stream URL
-try:
-  with open("music.mp3", "rb") as audio_file:
-    st.sidebar.audio(audio_file.read(), format="audio/mp3", loop=True)
-except FileNotFoundError:
-  st.sidebar.audio(
-      "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-      format="audio/mp3",
-      loop=True,
-  )
+# 1. Search Bar Input
+song_query = st.sidebar.text_input(
+    "Search song or playlist:",
+    placeholder="e.g., Lofi Hip Hop, Interstellar theme, Mozart",
+)
 
+video_id = None
+
+if song_query.strip():
+  with st.sidebar.spinner("Searching YouTube..."):
+    video_id = search_youtube_video_id(song_query.strip())
+    if video_id:
+      st.sidebar.success(f"Playing: **{song_query}**")
+    else:
+      st.sidebar.warning("Could not find video. Playing default track.")
+      video_id = "jfKfPfyJRdk"  # Lofi Girl fallback
+else:
+  st.sidebar.caption("Default Focus Track (Lofi Girl):")
+  video_id = "jfKfPfyJRdk"
+
+# 2. Directly Embed playable player on website
+st.sidebar.video(f"https://www.youtube.com/watch?v={video_id}")
 st.sidebar.write("---")
-
 # --- 4. Sidebar: Stopwatch & Countdown Timer ---
 st.sidebar.subheader("⏱️ Study Stopwatch")
 if st.sidebar.button("▶️ Start Stopwatch"):
