@@ -6,6 +6,7 @@ import urllib.parse
 import urllib.request
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 # --- 0. Page Configuration & Custom Branding ---
 st.set_page_config(
@@ -144,7 +145,7 @@ else:
 st.sidebar.video(f"https://www.youtube.com/watch?v={video_id}")
 st.sidebar.write("---")
 
-# --- 4. Sidebar: Stopwatch & Focus Timer ---
+# --- 4. Sidebar: Stopwatch & Non-Blocking Focus Timer ---
 st.sidebar.subheader("⏱️ Study Stopwatch")
 if st.sidebar.button("▶️ Start Stopwatch"):
   st.session_state.start_time = time.time()
@@ -168,24 +169,82 @@ if st.sidebar.button("⏹️ Stop & Record"):
 st.sidebar.write("---")
 
 st.sidebar.subheader("⏳ Live Focus Timer")
-timer_duration = st.sidebar.selectbox(
-    "Select Focus Duration:",
-    options=[1, 5, 15, 25, 50],
-    format_func=lambda x: f"{x} Minute{'s' if x > 1 else ''}",
-)
 
-# Fixed non-blocking Focus Timer
-timer_display = st.sidebar.empty()
-start_timer_btn = st.sidebar.button("Start Live Countdown")
+# Standalone JS Timer with Audio Sound Alarm
+timer_code = """
+<div style="font-family: Arial, sans-serif; text-align: center; background: #1e1e1e; padding: 15px; border-radius: 10px; border: 1px solid #333;">
+    <label style="color: #aaa; font-size: 13px;">Minutes:</label><br>
+    <select id="minutes-select" style="margin-top: 5px; margin-bottom: 12px; padding: 6px; width: 80%; border-radius: 5px; background: #2b2b2b; color: #fff; border: 1px solid #444;">
+        <option value="1">1 Minute</option>
+        <option value="5">5 Minutes</option>
+        <option value="15">15 Minutes</option>
+        <option value="25" selected>25 Minutes</option>
+        <option value="50">50 Minutes</option>
+    </select>
+    
+    <div id="timer-display" style="font-size: 32px; font-weight: bold; color: #00FF66; margin-bottom: 10px;">25:00</div>
+    
+    <button id="start-btn" onclick="toggleTimer()" style="width: 80%; padding: 8px; font-size: 14px; font-weight: bold; background-color: #ff4b4b; color: white; border: none; border-radius: 5px; cursor: pointer;">Start Timer</button>
 
-if start_timer_btn:
-  total_seconds = timer_duration * 60
-  for remaining in range(total_seconds, -1, -1):
-    mins, secs = divmod(remaining, 60)
-    timer_display.markdown(f"### ⏳ `{mins:02d}:{secs:02d}`")
-    time.sleep(1)
-  timer_display.success(f"🎉 {timer_duration}-minute focus session completed!")
+    <!-- Built-in Alarm Sound Stream -->
+    <audio id="alarm-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+</div>
 
+<script>
+var timerInterval = null;
+var isRunning = false;
+var remainingSeconds = 0;
+
+function toggleTimer() {
+    var display = document.getElementById('timer-display');
+    var btn = document.getElementById('start-btn');
+    var select = document.getElementById('minutes-select');
+    var alarm = document.getElementById('alarm-sound');
+
+    if (!isRunning) {
+        if (remainingSeconds <= 0) {
+            remainingSeconds = parseInt(select.value, 10) * 60;
+        }
+        isRunning = true;
+        btn.textContent = "Pause Timer";
+        btn.style.backgroundColor = "#ffa500";
+        select.disabled = true;
+
+        timerInterval = setInterval(function () {
+            var mins = parseInt(remainingSeconds / 60, 10);
+            var secs = parseInt(remainingSeconds % 60, 10);
+
+            mins = mins < 10 ? "0" + mins : mins;
+            secs = secs < 10 ? "0" + secs : secs;
+
+            display.textContent = mins + ":" + secs;
+
+            if (--remainingSeconds < 0) {
+                clearInterval(timerInterval);
+                display.textContent = "🎉 Time's Up!";
+                display.style.color = "#FFD700";
+                btn.textContent = "Start Timer";
+                btn.style.backgroundColor = "#ff4b4b";
+                isRunning = false;
+                select.disabled = false;
+                
+                // Trigger Alarm Sound
+                alarm.currentTime = 0;
+                alarm.play();
+            }
+        }, 1000);
+    } else {
+        clearInterval(timerInterval);
+        isRunning = false;
+        btn.textContent = "Resume Timer";
+        btn.style.backgroundColor = "#4CAF50";
+    }
+}
+</script>
+"""
+
+with st.sidebar:
+  components.html(timer_code, height=195)
 # --- 5. Main UI: Header & Study Logger ---
 st.title("📚 StudyBuddy")
 st.caption("Your all-in-one smart focus companion & productivity dashboard")
