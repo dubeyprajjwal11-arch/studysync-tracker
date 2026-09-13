@@ -1,4 +1,5 @@
 import json
+import re
 import sqlite3
 import time
 import urllib.parse
@@ -8,7 +9,7 @@ import streamlit as st
 
 # --- 0. Page Configuration & Custom Branding ---
 st.set_page_config(
-    page_title="StudySync Tracker",
+    page_title="StudyBuddy",
     page_icon="📚",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -18,7 +19,12 @@ st.set_page_config(
 st.sidebar.title("🎨 Customization")
 bg_option = st.sidebar.selectbox(
     "Choose Background Style:",
-    options=["Default Dark", "Aesthetic Cozy Study", "Minimalist Nature", "Custom Image URL"]
+    options=[
+        "Default Dark",
+        "Aesthetic Cozy Study",
+        "Minimalist Nature",
+        "Custom Image URL",
+    ],
 )
 
 bg_css = ""
@@ -93,13 +99,8 @@ if "start_time" not in st.session_state:
 if "logged_hours" not in st.session_state:
   st.session_state.logged_hours = 0.0
 
+
 # --- 3. Sidebar: In-App YouTube Search & Player ---
-import json
-import re
-import urllib.parse
-import urllib.request
-
-
 def search_youtube_video_id(query):
   """Fetches the top YouTube video ID for a given search query directly."""
   try:
@@ -110,7 +111,6 @@ def search_youtube_video_id(query):
     )
     with urllib.request.urlopen(req, timeout=5) as response:
       html = response.read().decode("utf-8")
-      # Extract top video IDs using regex from page metadata
       video_ids = re.findall(r"\"videoId\":\"([a-zA-Z0-9_-]{11})\"", html)
       if video_ids:
         return video_ids[0]
@@ -120,12 +120,11 @@ def search_youtube_video_id(query):
 
 
 st.sidebar.write("---")
-st.sidebar.title("🎧 In-App Focus Music")
+st.sidebar.title("🎧 Focus Music Search")
 
-# 1. Search Bar Input
 song_query = st.sidebar.text_input(
-    "Search song or playlist:",
-    placeholder="e.g., Lofi Hip Hop, Interstellar theme, Mozart",
+    "Search any video or song:",
+    placeholder="e.g., Lofi Hip Hop, Physics Wallah, Mozart",
 )
 
 video_id = None
@@ -137,15 +136,15 @@ if song_query.strip():
       st.sidebar.success(f"Playing: **{song_query}**")
     else:
       st.sidebar.warning("Could not find video. Playing default track.")
-      video_id = "jfKfPfyJRdk"  # Lofi Girl fallback
+      video_id = "jfKfPfyJRdk"
 else:
   st.sidebar.caption("Default Focus Track (Lofi Girl):")
   video_id = "jfKfPfyJRdk"
 
-# 2. Directly Embed playable player on website
 st.sidebar.video(f"https://www.youtube.com/watch?v={video_id}")
 st.sidebar.write("---")
-# --- 4. Sidebar: Stopwatch & Countdown Timer ---
+
+# --- 4. Sidebar: Stopwatch & Focus Timer ---
 st.sidebar.subheader("⏱️ Study Stopwatch")
 if st.sidebar.button("▶️ Start Stopwatch"):
   st.session_state.start_time = time.time()
@@ -175,23 +174,23 @@ timer_duration = st.sidebar.selectbox(
     format_func=lambda x: f"{x} Minute{'s' if x > 1 else ''}",
 )
 
-if st.sidebar.button("Start Live Countdown"):
+# Fixed non-blocking Focus Timer
+timer_display = st.sidebar.empty()
+start_timer_btn = st.sidebar.button("Start Live Countdown")
+
+if start_timer_btn:
   total_seconds = timer_duration * 60
-  timer_container = st.sidebar.empty()
-
-  for i in range(total_seconds, -1, -1):
-    mins, secs = divmod(i, 60)
-    timer_container.markdown(f"### ⏳ `{mins:02d}:{secs:02d}`")
+  for remaining in range(total_seconds, -1, -1):
+    mins, secs = divmod(remaining, 60)
+    timer_display.markdown(f"### ⏳ `{mins:02d}:{secs:02d}`")
     time.sleep(1)
-
-  timer_container.empty()
-  st.sidebar.success(f"🎉 {timer_duration}-minute focus session completed!")
+  timer_display.success(f"🎉 {timer_duration}-minute focus session completed!")
 
 # --- 5. Main UI: Header & Study Logger ---
-st.title("📚 StudySync Tracker")
+st.title("📚 StudyBuddy")
 st.caption("Your all-in-one smart focus companion & productivity dashboard")
 
-st.header(" Log a Study Session")
+st.header("📝 Log a Study Session")
 col1, col2 = st.columns(2)
 
 with col1:
@@ -236,7 +235,7 @@ if st.button("Ask Assistant"):
         url = f"https://api.duckduckgo.com/?q={encoded_query}&format=json&no_html=1&skip_disambig=1"
 
         req = urllib.request.Request(
-            url, headers={"User-Agent": "StudySyncTracker/1.0"}
+            url, headers={"User-Agent": "StudyBuddy/1.0"}
         )
         with urllib.request.urlopen(req) as response:
           data = json.loads(response.read().decode())
@@ -251,10 +250,9 @@ if st.button("Ask Assistant"):
             st.success(f"**Answer for:** *{heading}*")
             st.write(abstract)
           else:
-            # Wikipedia fallback
             wiki_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(query_text.title())}"
             wiki_req = urllib.request.Request(
-                wiki_url, headers={"User-Agent": "StudySyncTracker/1.0"}
+                wiki_url, headers={"User-Agent": "StudyBuddy/1.0"}
             )
             with urllib.request.urlopen(wiki_req) as wiki_resp:
               wiki_data = json.loads(wiki_resp.read().decode())
@@ -264,13 +262,13 @@ if st.button("Ask Assistant"):
                 st.write(wiki_extract)
               else:
                 st.info(
-                    f"💡 **Study Tip for '{query_text}':** Focus on main definitions"
-                    " and practice core problem examples!"
+                    f"💡 **Study Tip for '{query_text}':** Focus on main"
+                    " definitions and practice core problem examples!"
                 )
       except Exception:
         st.info(
-            f"💡 **Study Tip for '{search_query}':** Focus on main definitions and"
-            " practice core problem examples!"
+            f"💡 **Study Tip for '{search_query}':** Focus on main definitions"
+            " and practice core problem examples!"
         )
   else:
     st.warning("Please enter a question first.")
@@ -309,9 +307,7 @@ if not df.empty:
         st.success("All logs cleared!")
         st.rerun()
     with col_clear2:
-      delete_id = st.number_input(
-          "Enter ID to delete:", min_value=1, step=1
-      )
+      delete_id = st.number_input("Enter ID to delete:", min_value=1, step=1)
       if st.button("Delete Specific Entry"):
         cursor.execute("DELETE FROM study_log WHERE id = ?", (delete_id,))
         conn.commit()
